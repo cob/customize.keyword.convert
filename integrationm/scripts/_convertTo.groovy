@@ -29,6 +29,7 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import config.ConvertToConfig
 
 //log.info("DAN. AUTOPDF.GROOVY ONNN ddsfds !!! '$msg.type'")
 log.info("STARTING _convertTo.groovy")
@@ -133,7 +134,7 @@ def getConversionFields(definitionName) {
 
 def convertFile(File file,String filename, String destPath,int instanceId, String fieldName){
 
-    def String TARGET_URL="https://v2.convertapi.com/convert/xls/to/pdf?Secret=dzI3yJPWjuiYO8YA";
+    def String TARGET_URL="https://v2.convertapi.com/convert/xls/to/pdf?Secret=${ConvertToConfig.API_KEY}";
 
     Client client = ClientBuilder.newClient()
         .property(ClientProperties.CONNECT_TIMEOUT, 3000)

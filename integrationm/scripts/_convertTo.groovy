@@ -31,11 +31,8 @@ import java.io.IOException;
 import java.net.URL;
 
 //log.info("DAN. AUTOPDF.GROOVY ONNN ddsfds !!! '$msg.type'")
-log.info("STARTING _convertToPDF.groovy")
+log.info("STARTING _convertTo.groovy")
 
-if ( msg.type != "testAuto" ) {
-    return
-}
 if (msg.product != "recordm-definition" && msg.product != "recordm") {
     return
 }
@@ -47,17 +44,17 @@ if (msg.product != "recordm-definition" && msg.product != "recordm") {
 if (msg.product == "recordm-definition") cacheOfAuditFieldsForDefinition.invalidate(msg.type)
 
 // ========================================================================================================
-def auditFields = cacheOfAuditFieldsForDefinition.get(msg.type, { getAuditFields(msg.type) })
+def auditFields = cacheOfAuditFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
 if (auditFields.size() > 0 && msg.product == "recordm" && msg.action =~ "add|update") {
     if (msg.user != "integrationm" || auditFields.every { f -> !msg.field(f.name).changed() }) {
-        recordm.update(msg.type, msg.instance.id, getAuditFieldsUpdates(auditFields, msg.instance.fields));
+        recordm.update(msg.type, msg.instance.id, getConversionFieldsUpdates(auditFields, msg.instance.fields));
     }
 }
 
 // ========================================================================================================
-def getAuditFieldsUpdates(auditFields,instanceFields) {
+def getConversionFieldsUpdates(auditFields,instanceFields) {
     def updates = [:]
-    log.info("IN getAuditFieldsUpdates. Fields: ${auditFields.size()}")
+    log.info("IN getConversionFieldsUpdates. Fields: ${auditFields.size()}")
     auditFields.each { auditField ->
 
         def currentValue = msg.value(auditField.sourceField)
@@ -96,8 +93,8 @@ def getAuditFieldsUpdates(auditFields,instanceFields) {
     return updates
 }
 
-def getAuditFields(definitionName) {
-    log.info("IN getAuditFields")
+def getConversionFields(definitionName) {
+    log.info("IN getConversionFields")
     // Obtém detalhes da definição
     def definitionEncoded = URLEncoder.encode(definitionName, "utf-8").replace("+", "%20")
     def resp = actionPacks.rmRest.get( "recordm/definitions/name/${definitionEncoded}".toString(), [:], "integrationm");
@@ -109,26 +106,29 @@ def getAuditFields(definitionName) {
     (0..fieldsSize-1).each { index ->
         def fieldDefinition  = definition.fieldDefinitions.getJSONObject(index)
         def fieldDescription = fieldDefinition.getString("description")
-        if(fieldDescription){
+        if(fieldDescription  && (fieldDescription =~ /[$]file/).size() > 0 ){
             def fieldDefId       = fieldDefinition.get("id");
             def fieldName        = fieldDefinition.get("name");
-            fields[fieldDefId]   = [name:fieldName, description: fieldDescription]
+            fields[fieldName]   = [name:fieldName, description: fieldDescription, fieldId:fieldDefId]
         }
     }
 
     // Finalmente obtém a lista de campos que é necessário calcular
-    def auditFields = [];
-    fields.each { fieldId,field -> 
+    def convertionFields = [];
+    fields.each { fieldName,field -> 
         log.info("desc: $field.description")
         def matcher = field.description =~ /[$]convert\(([^)].*)\)\.pdf/
+        //def fileMatcher  = field.description =~ /[$]file/
         if( matcher.size() > 0) {
             def sourceField = matcher[0][1]
-            log.info("sourceField '$sourceField'")
-            auditFields << [fieldId: fieldId, name:field.name, sourceField:sourceField ]
+            if(fields[sourceField]){
+                log.info("sourceField '$sourceField'")
+                convertionFields << [fieldId: field.fieldId, name:field.name, sourceField:sourceField ]
+            }
         }
     }
-    log.info("[\$convert.pdf] Update 'auditFields' for '$definitionName': $auditFields");
-    return auditFields
+    log.info("[\$convert.pdf] Update 'convertFields' for '$definitionName': $convertionFields");
+    return convertionFields
 }
 
 def convertFile(File file,String filename, String destPath,int instanceId, String fieldName){

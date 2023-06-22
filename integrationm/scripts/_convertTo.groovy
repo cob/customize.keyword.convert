@@ -30,6 +30,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import config.ConvertToConfig
+import java.nio.charset.StandardCharsets;
+
 
 //log.info("DAN. AUTOPDF.GROOVY ONNN ddsfds !!! '$msg.type'")
 log.info("STARTING _convertTo.groovy")
@@ -39,7 +41,7 @@ if (msg.product != "recordm-definition" && msg.product != "recordm") {
 }
 
 @Field static cacheOfAuditFieldsForDefinition = CacheBuilder.newBuilder()
-        .expireAfterWrite(5, TimeUnit.MINUTES)
+        .expireAfterWrite(1, TimeUnit.MINUTES)
         .build();
 
 if (msg.product == "recordm-definition") cacheOfAuditFieldsForDefinition.invalidate(msg.type)
@@ -61,39 +63,62 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
         def currentValue = msg.value(auditField.sourceField)
         if( ( msg.action == 'add' || (msg.action == 'update' && msg.field(auditField.sourceField).changed()) )
         && currentValue != null ) {
-            def matcher = currentValue =~ /[A-Za-z0-9]+\.(?i)(xls|xlsx)/
-
-            if (matcher.size() > 0) {
-                try {
-                    String filename = currentValue.split("\\.")[0];
-                    def absPath = "/var/lib/recordm/attachments/${msg.getInstance().field(auditField.sourceField).getFilePath()}/${currentValue}"
-                    def destPath = "/tmp/${filename}.pdf"
-                    File f = new File(absPath);
-                    long len = f.length();
-                    if(f.exists()){
-                        if(convertFile(f,filename,destPath,msg.instance.id,auditField.name)){
-                            currentValue = filename+".pdf"
-                            log.info("value '$currentValue'")
-                            updates << [(auditField.name) : currentValue]
+            try {
+                if ("file".equals(auditField.cType)) {
+                    def excelMatcher = currentValue =~ /[A-Za-z0-9]+\.(?i)(xls|xlsx)/
+                    if(excelMatcher.size() > 0){
+                        String filename = currentValue.split("\\.")[0];
+                        def absPath = "/var/lib/recordm/attachments/${msg.getInstance().field(auditField.sourceField).getFilePath()}/${currentValue}"
+                        def destPath = "/tmp/${filename}.pdf"
+                        File f = new File(absPath);
+                        long len = f.length();
+                        if(f.exists()){
+                            if(convertFile(f,filename,excelMatcher[0][1],destPath,msg.instance.id,auditField.name)){
+                                currentValue = filename+".pdf"
+                                log.info("value '$currentValue'")
+                                updates << [(auditField.name) : currentValue]
+                            }else{
+                                log.error("FAILED TO CONVERT ${absPath} TO PDF")
+                            }
                         }else{
-                            log.error("CONVERSION DID NOT HAPPEN")
+                            log.error("FILE ${absPath} NOT FOUND")
                         }
                     }else{
-                        log.error("NOT FOUND FILE '${absPath}'")
+                        log.error("EXPECTED EXTENSION 'XLS' OR 'XLSX'. GOT '${currentValue}'")
                     }
-                }catch(Exception e){
-                    e.printStackTrace()
-                    log.error("${e.getMessage()}");
+                }else{
+                    def filename = System.currentTimeMillis()+""+auditField.cType
+                    def destPath = "/tmp/${filename}.pdf"
+                    
+                    if(convertText(currentValue,"${filename}.${auditField.cType}",destPath,msg.instance.id,auditField.name,auditField.cType)){
+                        log.info("CONVERTED ${auditField.cType} TO PDF")
+                        currentValue = filename+".pdf"
+                        updates << [(auditField.name) : currentValue]
+                    }else{
+                        log.error("${auditField.cType} CONVERSION DID NOT HAPPEN")
+                    }
                 }
-            }else{
-                log.error("EXPECTED EXTENSION 'XLS' OR 'XLSX'. GOT '${currentValue}'")
-            }   
+            }catch(Exception e){
+                e.printStackTrace()
+                log.error("${e.getMessage()}");
+            }
+              
         }
     }
     log.info("[\$convert.pdf] Update 'convertPDFS' for updates: '$updates'");
     return updates
 }
-
+def supportedDollarDescription(descriptionName){
+    if( ( descriptionName =~ /[$]text/).size() > 0){
+        return "txt"; //CONVERT TEXT
+    }else if((descriptionName =~ /[$]markdown/).size() > 0) {  
+        return "html" //CONVERT FILE
+    }else if( ( descriptionName =~ /[$]file/).size() > 0){
+        return "file"
+    }else{
+        return null
+    }
+}
 def getConversionFields(definitionName) {
     log.info("IN getConversionFields")
     // Obtém detalhes da definição
@@ -107,24 +132,22 @@ def getConversionFields(definitionName) {
     (0..fieldsSize-1).each { index ->
         def fieldDefinition  = definition.fieldDefinitions.getJSONObject(index)
         def fieldDescription = fieldDefinition.getString("description")
-        if(fieldDescription  && (fieldDescription =~ /[$]file/).size() > 0 ){
+        def convertionType = supportedDollarDescription(fieldDescription)
+        if(fieldDescription  &&  convertionType != null){
             def fieldDefId       = fieldDefinition.get("id");
             def fieldName        = fieldDefinition.get("name");
-            fields[fieldName]   = [name:fieldName, description: fieldDescription, fieldId:fieldDefId]
+            fields[fieldName]   = [name:fieldName, description: fieldDescription, fieldId:fieldDefId, cType:convertionType]
         }
     }
 
     // Finalmente obtém a lista de campos que é necessário calcular
     def convertionFields = [];
     fields.each { fieldName,field -> 
-        log.info("desc: $field.description")
         def matcher = field.description =~ /[$]convert\(([^)].*)\)\.pdf/
-        //def fileMatcher  = field.description =~ /[$]file/
         if( matcher.size() > 0) {
             def sourceField = matcher[0][1]
-            if(fields[sourceField]){
-                log.info("sourceField '$sourceField'")
-                convertionFields << [fieldId: field.fieldId, name:field.name, sourceField:sourceField ]
+            if(fields[sourceField] && "file".equals(field.cType)){
+                convertionFields << [fieldId: field.fieldId, name:field.name, sourceField:sourceField, cType:fields[sourceField].cType]
             }
         }
     }
@@ -132,10 +155,10 @@ def getConversionFields(definitionName) {
     return convertionFields
 }
 
-def convertFile(File file,String filename, String destPath,int instanceId, String fieldName){
+def convertFile(File file,String filename, String fileExtension,String destPath,int instanceId, String fieldName){
 
-    def String TARGET_URL="https://v2.convertapi.com/convert/xls/to/pdf?Secret=${ConvertToConfig.API_KEY}";
-
+    def String TARGET_URL="https://v2.convertapi.com/convert/${fileExtension}/to/pdf?Secret=${ConvertToConfig.API_KEY}";
+    log.info("TARGET: ${TARGET_URL}")
     Client client = ClientBuilder.newClient()
         .property(ClientProperties.CONNECT_TIMEOUT, 3000)
         .property(ClientProperties.READ_TIMEOUT, 90000)
@@ -155,19 +178,60 @@ def convertFile(File file,String filename, String destPath,int instanceId, Strin
 
     Response response = webTarget.request(MediaType.APPLICATION_JSON).post(Entity.entity(multiPart, multiPart.getMediaType()));
 
+    String url = getURLFromResponse(response);
+
+    log.info ("Finished convertion. STATUS: ${response.getStatus()} URL ${url}")
+    return downloadFile(response.getStatus(),destPath,client,url,instanceId,fieldName);
+}
+
+def convertText(String text,String filename, String destPath, int instanceId, String fieldName, String fileExtension){
+    String base64Text = Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
+    String request = "{\n" +
+                "    \"Parameters\": [\n" +
+                "        {\n" +
+                "            \"Name\": \"File\",\n" +
+                "            \"FileValue\": {\n" +
+                "                \"Name\": \""+filename+"\",\n" +
+                "                \"Data\": \"" +base64Text+ "\"\n"+
+                "            }\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"Name\": \"StoreFile\",\n" +
+                "            \"Value\": true\n" +
+                "        }" +
+                "    ]\n" +
+                "}";
+
+    def String TARGET_URL="https://v2.convertapi.com/convert/${fileExtension}/to/pdf?Secret=${ConvertToConfig.API_KEY}";
+    log.info("TARGEET : ${TARGET_URL}")
+    Client client = ClientBuilder.newClient()
+        .property(ClientProperties.CONNECT_TIMEOUT, 3000)
+        .property(ClientProperties.READ_TIMEOUT, 90000);
+
+    WebTarget webTarget = client.target(TARGET_URL);
+
+    Response response = webTarget.request(MediaType.APPLICATION_JSON).post(Entity.entity(request,MediaType.APPLICATION_JSON));
+
+    String url = getURLFromResponse(response);
+
+    log.info ("Finished text-to-file convertion. STATUS: ${response.getStatus()} URL ${url}")
+    
+    return downloadFile(response.getStatus(),destPath,client,url,instanceId,fieldName);
+}
+def getURLFromResponse(response){
     String jsonResponse = response.readEntity(String.class);
     JSONObject jsonObject = new JSONObject(jsonResponse);
     JSONArray jsonArray = jsonObject.getJSONArray("Files");
-    String url = jsonArray.getJSONObject(0).getString("Url");
-
-    log.info ("Finished convertion. STATUS: ${response.getStatus()} URL ${url}")
-    if(200 == response.getStatus()){
+    return jsonArray.getJSONObject(0).getString("Url");
+}
+def downloadFile(status,destPath,client,url,instanceId,fieldName){
+    if(200 == status){
         File fileToDownloaded;
         try{
             fileToDownloaded = new File(destPath);
             FileUtils.copyURLToFile(new URL(url),fileToDownloaded);
-            int status = client.target(url).request().delete().getStatus();
-            //log.info("DELETED ? ${status}")
+            def status2 = client.target(url).request().delete().getStatus();
+            log.info("DELETED ? ${status2}")
             if(!recordm.attach(instanceId,fieldName,fileToDownloaded.getName(),fileToDownloaded).success()){
                 log.error("DOWNLOADED CONVERTED PDF FILE NOT ATTACHED")
             }
@@ -181,5 +245,5 @@ def convertFile(File file,String filename, String destPath,int instanceId, Strin
     }else{
         log.error("ERROR CONVERTING THE FILE TO PDF. RESPONSE STATUS: ${response.getStatus()}")
     }
-    return false;
+    return false
 }

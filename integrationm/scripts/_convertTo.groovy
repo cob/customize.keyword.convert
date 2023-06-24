@@ -131,7 +131,7 @@ def getConversionFields(definitionName) {
     def fields = [:]
     (0..fieldsSize-1).each { index ->
         def fieldDefinition  = definition.fieldDefinitions.getJSONObject(index)
-        def fieldDescription = fieldDefinition.getString("description")
+        def fieldDescription = fieldDefinition.optString("description")
         def convertionType = supportedDollarDescription(fieldDescription)
         if(fieldDescription  &&  convertionType != null){
             def fieldDefId       = fieldDefinition.get("id");

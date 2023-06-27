@@ -32,6 +32,11 @@ import java.net.URL;
 import config.ConvertToConfig
 import java.nio.charset.StandardCharsets;
 
+import com.vladsch.flexmark.html.HtmlRenderer;
+import com.vladsch.flexmark.parser.Parser;
+import com.vladsch.flexmark.util.ast.Node;
+import com.vladsch.flexmark.util.data.MutableDataSet;
+
 
 //log.info("DAN. AUTOPDF.GROOVY ONNN ddsfds !!! '$msg.type'")
 log.info("STARTING _convertTo.groovy")
@@ -185,6 +190,7 @@ def convertFile(File file,String filename, String fileExtension,String destPath,
 }
 
 def convertText(String text,String filename, String destPath, int instanceId, String fieldName, String fileExtension){
+    text = "html".equals(fileExtension) ? markdownToHTML(text) : text
     String base64Text = Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     String request = "{\n" +
                 "    \"Parameters\": [\n" +
@@ -246,4 +252,20 @@ def downloadFile(status,destPath,client,url,instanceId,fieldName){
         log.error("ERROR CONVERTING THE FILE TO PDF. RESPONSE STATUS: ${response.getStatus()}")
     }
     return false
+}
+def markdownToHTML(inputTxt){
+    MutableDataSet options = new MutableDataSet();
+
+        // uncomment to set optional extensions
+        //options.set(Parser.EXTENSIONS, Arrays.asList(TablesExtension.create(), StrikethroughExtension.create()));
+
+        // uncomment to convert soft-breaks to hard breaks
+        //options.set(HtmlRenderer.SOFT_BREAK, "<br />\n");
+
+        Parser parser = Parser.builder(options).build();
+        HtmlRenderer renderer = HtmlRenderer.builder(options).build();
+
+        // You can re-use parser and renderer instances
+        Node document = parser.parse(inputTxt);
+        return renderer.render(document);
 }

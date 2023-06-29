@@ -32,9 +32,12 @@ import java.net.URL;
 import config.ConvertToConfig
 import java.nio.charset.StandardCharsets;
 
+import com.vladsch.flexmark.ext.gfm.strikethrough.StrikethroughExtension;
+import com.vladsch.flexmark.ext.tables.TablesExtension;
 import com.vladsch.flexmark.html.HtmlRenderer;
 import com.vladsch.flexmark.parser.Parser;
 import com.vladsch.flexmark.util.ast.Node;
+import com.vladsch.flexmark.util.data.MutableDataSet;
 
 //log.info("DAN. AUTOPDF.GROOVY ONNN ddsfds !!! '$msg.type'")
 log.info("STARTING _convertTo.groovy")
@@ -188,7 +191,12 @@ def convertFile(File file,String filename, String fileExtension,String destPath,
 }
 
 def convertText(String text,String filename, String destPath, int instanceId, String fieldName, String fileExtension){
-    text = "html".equals(fileExtension) ? markdownToHTML(text) : text;
+    def userCSS = "";
+    if("html".equals(fileExtension)){
+        text = markdownToHTML(text)
+        userCSS = ",{\"Name\":\"UserCss\",\"Value\":\""+ConvertToConfig.MD_CSS_STYLE+"\"}";
+    }
+
     String base64Text = Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     String request = "{" +
                 "    \"Parameters\": [" +
@@ -206,10 +214,9 @@ def convertText(String text,String filename, String destPath, int instanceId, St
                 "        {" +
                 "            \"Name\": \"Scale\"," +
                 "            \"Value\": 175" +
-                "        }" +
+                "        }" +userCSS+
                 "    ]" +
                 "}";
-
     def String TARGET_URL="https://v2.convertapi.com/convert/${fileExtension}/to/pdf?Secret=${ConvertToConfig.API_KEY}";
     log.info("TARGEET : ${TARGET_URL}")
     Client client = ClientBuilder.newClient()
@@ -220,17 +227,23 @@ def convertText(String text,String filename, String destPath, int instanceId, St
 
     Response response = webTarget.request(MediaType.APPLICATION_JSON).post(Entity.entity(request,MediaType.APPLICATION_JSON));
 
-    String url = getURLFromResponse(response);
+    log.info ("Finished text-to-file convertion. STATUS: ${response.getStatus()}")
 
-    log.info ("Finished text-to-file convertion. STATUS: ${response.getStatus()} URL ${url}")
+    String url = getURLFromResponse(response);
     
     return downloadFile(response.getStatus(),destPath,client,url,instanceId,fieldName);
 }
 def getURLFromResponse(response){
     String jsonResponse = response.readEntity(String.class);
     JSONObject jsonObject = new JSONObject(jsonResponse);
-    JSONArray jsonArray = jsonObject.getJSONArray("Files");
-    return jsonArray.getJSONObject(0).getString("Url");
+    if(response.getStatus()==200){
+        JSONArray jsonArray = jsonObject.getJSONArray("Files");
+        return jsonArray.getJSONObject(0).getString("Url");
+    }else{
+        String message = jsonObject.getString("Message");
+        log.error("HTTPSTATUS:${response.getStatus()} . ${message}")
+        return "";
+    }
 }
 def downloadFile(status,destPath,client,url,instanceId,fieldName){
     if(200 == status){
@@ -256,10 +269,14 @@ def downloadFile(status,destPath,client,url,instanceId,fieldName){
     return false
 }
 def markdownToHTML(inputTxt){
-    Parser parser = Parser.builder().build();
-    HtmlRenderer renderer = HtmlRenderer.builder().build();
+    MutableDataSet options = new MutableDataSet();
+    options.set(Parser.EXTENSIONS, Arrays.asList(TablesExtension.create(), StrikethroughExtension.create()));
+    options.set(HtmlRenderer.FENCED_CODE_LANGUAGE_CLASS_PREFIX,"language-");
+    options.set(Parser.BLOCK_QUOTE_EXTEND_TO_BLANK_LINE,true);
+    Parser parser = Parser.builder(options).build();
+    HtmlRenderer renderer = HtmlRenderer.builder(options).build();
+    // You can re-use parser and renderer instances
     Node document = parser.parse(inputTxt);
-    String txt = renderer.render(document);
-    log.info("${txt}");
-    return txt;
+    String html = renderer.render(document);
+    return html;
 }

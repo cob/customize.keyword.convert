@@ -1,8 +1,8 @@
 package config
 
 class ConvertToConfig {
-    public static final String API_KEY = "xxxxxxx";
-    public static final String MD_CSS_STYLE = ("code{\n" +
+    public static final String API_KEY = "xxxxxx";
+    public static final String MD_CSS_STYLE = ("body{font-family: Verdana, arial, sans-serif;} code{\n" +
             "        padding: 2px 4px;\n" +
             "        color: #d14;\n" +
             "        background-color: #f7f7f9;\n" +

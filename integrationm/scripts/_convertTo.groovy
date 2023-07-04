@@ -70,16 +70,16 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
         if( ( msg.action == 'add' || (msg.action == 'update' && msg.field(auditField.sourceField).changed()) )
         && currentValue != null ) {
             try {
-                if ("file".equals(auditField.cType)) {
-                    def excelMatcher = currentValue =~ /[A-Za-z0-9]+\.(?i)(xls|xlsx)/
-                    if(excelMatcher.size() > 0){
-                        String filename = currentValue.split("\\.")[0];
+                if ("file".equals(auditField.cType) ) {
+                    def excelMatcher = currentValue =~  /(.*)\.([A-Za-z]+)/
+                    if(excelMatcher.size() > 0 && ConvertToConfig.SUPPORTED_INPUTS.contains(excelMatcher[0][2].toUpperCase())){
+                        String filename = excelMatcher[0][1]; //currentValue.split("\\.")[0];
                         def absPath = "/var/lib/recordm/attachments/${msg.getInstance().field(auditField.sourceField).getFilePath()}/${currentValue}"
                         def destPath = "/tmp/${filename}.pdf"
                         File f = new File(absPath);
                         long len = f.length();
                         if(f.exists()){
-                            if(convertFile(f,filename,excelMatcher[0][1],destPath,msg.instance.id,auditField.name)){
+                            if(convertFile(f,filename,excelMatcher[0][2],destPath,msg.instance.id,auditField.name)){
                                 currentValue = filename+".pdf"
                                 log.info("value '$currentValue'")
                                 updates << [(auditField.name) : currentValue]
@@ -90,7 +90,7 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
                             log.error("FILE ${absPath} NOT FOUND")
                         }
                     }else{
-                        log.error("EXPECTED EXTENSION 'XLS' OR 'XLSX'. GOT '${currentValue}'")
+                        log.error("EXPECTED EXTENSION '${ConvertToConfig.SUPPORTED_INPUTS}'. GOT '${currentValue}'")
                     }
                 }else{
                     def filename = System.currentTimeMillis()+""+auditField.cType
@@ -264,7 +264,7 @@ def downloadFile(status,destPath,client,url,instanceId,fieldName){
             fileToDownloaded.delete()
         }
     }else{
-        log.error("ERROR CONVERTING THE FILE TO PDF. RESPONSE STATUS: ${response.getStatus()}")
+        log.error("ERROR CONVERTING THE FILE TO PDF. RESPONSE STATUS: ${status}")
     }
     return false
 }

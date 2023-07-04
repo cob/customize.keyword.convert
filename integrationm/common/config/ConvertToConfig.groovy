@@ -1,7 +1,9 @@
 package config
 
 class ConvertToConfig {
-    public static final String API_KEY = "xxxxxx";
+    public static final String API_KEY = "q2uuTZQJrqjiUuEU";
+    //https://www.convertapi.com/doc/file-formats
+    public static final SUPPORTED_INPUTS = ["XLSX","XLS","PPTX","PPT","ODT","DOCX","DOC","RTF","PUB","CVS","NUMBERS","KEY","PAGES"]
     public static final String MD_CSS_STYLE = ("body{font-family: Verdana, arial, sans-serif;} code{\n" +
             "        padding: 2px 4px;\n" +
             "        color: #d14;\n" +

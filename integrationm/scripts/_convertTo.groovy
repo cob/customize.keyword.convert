@@ -53,10 +53,13 @@ if (msg.product != "recordm-definition" && msg.product != "recordm") {
 if (msg.product == "recordm-definition") cacheOfAuditFieldsForDefinition.invalidate(msg.type)
 
 // ========================================================================================================
-def auditFields = cacheOfAuditFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
-if (msg.user != "integrationm" && auditFields.size() > 0 && msg.product == "recordm" && msg.action =~ "add|update") {
-    if (auditFields.any { f -> msg.field(f.name).changed() }) {
-        recordm.update(msg.type, msg.instance.id, getConversionFieldsUpdates(auditFields, msg.instance.fields));
+def convertFields = cacheOfAuditFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
+if (msg.user != "integrationm" && convertFields.size() > 0 && msg.product == "recordm" && msg.action =~ "add|update") {
+    if (convertFields.any { convertField -> msg.field(convertField.sourceField).changed() }) {
+        def updatedFields = getConversionFieldsUpdates(convertFields, msg.instance.fields)
+        log.info("[_\$convertTo] Updating calc fields for instance ${msg.instance.id} updatedFields=${updatedFields}")
+
+        recordm.update(msg.type, msg.instance.id, updatedFields);
     }
 }
 
@@ -95,7 +98,7 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
                 }else{
                     def filename = System.currentTimeMillis()+""+auditField.cType
                     def destPath = "/tmp/${filename}.pdf"
-                    
+
                     if(convertText(currentValue,"${filename}.${auditField.cType}",destPath,msg.instance.id,auditField.name,auditField.cType)){
                         log.info("CONVERTED ${auditField.cType} TO PDF")
                         currentValue = filename+".pdf"
@@ -108,7 +111,7 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
                 e.printStackTrace()
                 log.error("${e.getMessage()}");
             }
-              
+
         }
     }
     log.info("[\$convert.pdf] Update 'convertPDFS' for updates: '$updates'");
@@ -117,7 +120,7 @@ def getConversionFieldsUpdates(auditFields,instanceFields) {
 def supportedDollarDescription(descriptionName){
     if( ( descriptionName =~ /[$]text/).size() > 0){
         return "txt"; //CONVERT TEXT
-    }else if((descriptionName =~ /[$]markdown/).size() > 0) {  
+    }else if((descriptionName =~ /[$]markdown/).size() > 0) {
         return "html" //CONVERT FILE
     }else if( ( descriptionName =~ /[$]file/).size() > 0){
         return "file"
@@ -148,7 +151,7 @@ def getConversionFields(definitionName) {
 
     // Finalmente obtém a lista de campos que é necessário calcular
     def convertionFields = [];
-    fields.each { fieldName,field -> 
+    fields.each { fieldName,field ->
         def matcher = field.description =~ /[$]convert\(([^)].*)\)\.pdf/
         if( matcher.size() > 0) {
             def sourceField = matcher[0][1]
@@ -230,7 +233,7 @@ def convertText(String text,String filename, String destPath, int instanceId, St
     log.info ("Finished text-to-file convertion. STATUS: ${response.getStatus()}")
 
     String url = getURLFromResponse(response);
-    
+
     return downloadFile(response.getStatus(),destPath,client,url,instanceId,fieldName);
 }
 def getURLFromResponse(response){

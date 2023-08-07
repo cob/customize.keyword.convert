@@ -46,18 +46,18 @@ if (msg.product != "recordm-definition" && msg.product != "recordm") {
     return
 }
 
-@Field static cacheOfAuditFieldsForDefinition = CacheBuilder.newBuilder()
+@Field static cacheOfConvertFieldsForDefinition = CacheBuilder.newBuilder()
         .expireAfterWrite(1, TimeUnit.MINUTES)
         .build();
 
-if (msg.product == "recordm-definition") cacheOfAuditFieldsForDefinition.invalidate(msg.type)
+if (msg.product == "recordm-definition") cacheOfConvertFieldsForDefinition.invalidate(msg.type)
 
 // ========================================================================================================
-def convertFields = cacheOfAuditFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
+def convertFields = cacheOfConvertFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
 if (msg.user != "integrationm" && convertFields.size() > 0 && msg.product == "recordm" && msg.action =~ "add|update") {
     if (convertFields.any { convertField -> msg.field(convertField.sourceField).changed() }) {
         def updatedFields = getConversionFieldsUpdates(convertFields, msg.instance.fields)
-        log.info("[_\$convertTo] Updating calc fields for instance ${msg.instance.id} updatedFields=${updatedFields}")
+        log.info("[_\$convert] Updating fields for instance ${msg.instance.id} updatedFields=${updatedFields}")
 
         recordm.update(msg.type, msg.instance.id, updatedFields);
     }

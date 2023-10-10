@@ -8,7 +8,10 @@
     * The field *neighborFieldName* must have one of the three following descriptions:
         * $text
         * $markdown
-        * $file. The file must be either .xls or .xlsx
+        * $file. The supported file extensions can be found at /integrationm/common/config/ConvertToConfig.SUPPORTED_INPUTS
+
+    * It currently converts plain text, markdown and files to PDF, with the resulting PDF having a
+    useful width of 770.
     
 ### Needed credentials
     * In order to successfully use the https://www.convertapi.com/ endpoints, the user

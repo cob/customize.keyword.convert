@@ -55,12 +55,9 @@ if (msg.product == "recordm-definition") cacheOfConvertFieldsForDefinition.inval
 // ========================================================================================================
 def convertFields = cacheOfConvertFieldsForDefinition.get(msg.type, { getConversionFields(msg.type) })
 if (msg.user != "integrationm" && convertFields.size() > 0 && msg.product == "recordm" && msg.action =~ "add|update") {
-    if (convertFields.any { convertField -> msg.field(convertField.sourceField).changed() }) {
-        def updatedFields = getConversionFieldsUpdates(convertFields, msg.instance.fields)
-        log.info("[_\$convert] Updating fields for instance ${msg.instance.id} updatedFields=${updatedFields}")
-
-        recordm.update(msg.type, msg.instance.id, updatedFields);
-    }
+    def updatedFields = getConversionFieldsUpdates(convertFields, msg.instance.fields)
+    log.info("[_\$convert] Updating fields for instance ${msg.instance.id} updatedFields=${updatedFields}")
+    recordm.update(msg.type, msg.instance.id, updatedFields);
 }
 
 // ========================================================================================================

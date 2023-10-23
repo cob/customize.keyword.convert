@@ -14,5 +14,5 @@
     useful width of 770.
     
 ### Needed credentials
-    * In order to successfully use the https://www.convertapi.com/ endpoints, the user
-    * must include the API KEY in the file common/config/ConvertConfig.groovy
+    * In order to successfully use this script, the user
+    * must include the API KEY (https://help.convertapi.com/en/article/where-do-i-find-my-secret-key-v7w9vn/) in the file common/config/ConvertToConfig.groovy.API_KEY

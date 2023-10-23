@@ -4,7 +4,7 @@ class ConvertToConfig {
     public static final String API_KEY = "__THE_API_TOKEN__";
     
     //https://www.convertapi.com/doc/file-formats
-    public static final SUPPORTED_INPUTS = ["XLSX","XLS","PPTX","PPT","ODT","DOCX","DOC","RTF","PUB","CSV","NUMBERS","KEY","PAGES"]
+    public static final SUPPORTED_INPUTS = ["XLSX","XLS","PPTX","PPT","ODT","DOCX","DOC","RTF","PUB","CSV","NUMBERS","KEY","PAGES","PNG","JPG"]
     public static final String MD_CSS_STYLE = ("body{font-family: Verdana, arial, sans-serif;} code{\n" +
             "        padding: 2px 4px;\n" +
             "        color: #d14;\n" +

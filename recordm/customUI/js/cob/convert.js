@@ -1,5 +1,3 @@
-      //TODO add the same for touchpads
-//main()
 function handleInstanceCustomizations() {
    const fileMatcher = /[$]file/;
    const canvasMatcher = /[$]convert/;

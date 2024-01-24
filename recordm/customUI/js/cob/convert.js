@@ -1,20 +1,19 @@
-function handleInstanceCustomizations() {
-   const fileMatcher = /[$]file/;
-   const canvasMatcher = /[$]convert/;
-   cob.custom.customize.push(function (core, utils, ui) {
-      core.customizeAllInstances((instance, presenter) => {
-         if (presenter.isGroupEdit()) return;
-         
-         const canvasFPs = presenter.findFieldPs((fp) => canvasMatcher.exec( fp.field.fieldDefinition.description ) 
-         && fileMatcher.exec( fp.field.fieldDefinition.description ));
+cob.custom.customize.push(function(core, utils, ui) {
 
-         canvasFPs.forEach((fp) => {
-            let fieldPresenter = fp.content()[0];
-            let controlDIV = fieldPresenter.querySelector(".controls")
-            controlDIV.style.display="none"
-         });
-      })
-   });
-}
+  const fileMatcher = /[$]file/;
+  const canvasMatcher = /[$]convert/;
 
-handleInstanceCustomizations()
+  core.customizeAllInstances((instance, presenter) => {
+    if (presenter.isGroupEdit()) return;
+
+    presenter.findFieldPs((fp) => {
+      return canvasMatcher.test(fp.field.fieldDefinition.description)
+             && fileMatcher.test(fp.field.fieldDefinition.description);
+
+    }).forEach(fp => {
+      fp.content()[0].querySelector("input.js-file-input").remove();
+      fp.content()[0].querySelector("button.js-upload-button").remove();
+    });
+
+  });
+});
